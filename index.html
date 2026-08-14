@@ -4,12 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
   <title>J.Law 旅遊記帳</title>
-  <meta name="description" content="家人朋友旅遊即時同步記帳" />
+  <meta name="description" content="家人朋友出國旅遊即時同步記帳" />
   <meta name="theme-color" content="#18181b" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="J.Law 旅遊記帳" />
+  <meta name="apple-mobile-web-app-title" content="旅遊記帳" />
   <meta name="mobile-web-app-capable" content="yes" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
@@ -67,8 +67,8 @@
     const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
     // ========== 請替換成你的 Supabase 專案 ==========
-    const SUPABASE_URL = 'https://wemwppzjiiiygxfwbxev.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndlbXdwcHpqaWlpeWd4ZndieGV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MjcwODYsImV4cCI6MjEwMjMwMzA4Nn0.SRO5VEvyFpR3Dv88Jjkj42Df8xLyy4Errqqi2gMOAAU';
+    const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
+    const SUPABASE_ANON_KEY = 'YOUR_ANON_KEY';
     // 全家人共用同一個固定帳本（不必輸入代碼，打開即同步）
     // 若要換下一趟旅行，可改這個常數或在設定清除本機後重開
     const FIXED_LEDGER_CODE = 'FAMILY';
@@ -250,7 +250,7 @@
     // 首次開啟：只填暱稱即可進入全家人共用帳本（免代碼）
     const WelcomeModal = ({ onStart }) => {
       const [name, setName] = useState('');
-      const [tripName, setTripName] = useState('J.Law 旅遊共同帳本');
+      const [tripName, setTripName] = useState('家人旅遊');
       const [homeCur, setHomeCur] = useState('TWD');
 
       return (
@@ -261,7 +261,7 @@
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-zinc-500 mb-1">你的暱稱（顯示在付款人）</label>
-                <input type="text" placeholder="例如：爸爸、細佬" value={name}
+                <input type="text" placeholder="例如：爸爸、小美" value={name}
                   onChange={e => setName(e.target.value)}
                   className="w-full px-3 py-2.5 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800"
                   autoFocus />
@@ -321,6 +321,7 @@
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">匯率（1 單位外幣 = ? 本國貨幣）</label>
+                <p className="text-xs text-zinc-500 mb-2">儲存後會同步給全家人，大家換算數字一致</p>
                 <div className="space-y-2 max-h-40 overflow-y-auto">
                   {CURRENCIES.filter(c => c.key !== (local.homeCurrency || 'TWD')).map(c => (
                     <div key={c.key} className="flex items-center gap-2">
@@ -464,10 +465,56 @@
       }, [ledger]);
 
       // ---------- Supabase sync ----------
+      // 同步帳本設定（行程名、本國貨幣、匯率）— 全家共用同一組匯率
+      const applyLedgerRow = useCallback((row) => {
+        if (!row) return;
+        setLedger(prev => {
+          if (!prev) return prev;
+          const nextRates = (row.rates && typeof row.rates === 'object') ? row.rates : (prev.rates || {});
+          return {
+            ...prev,
+            tripName: row.name || prev.tripName,
+            homeCurrency: row.home_currency || prev.homeCurrency || 'TWD',
+            rates: nextRates,
+            code: FIXED_LEDGER_CODE
+          };
+        });
+      }, [setLedger]);
+
+      const pullLedgerSettings = useCallback(async (code) => {
+        if (!sb || !code) return;
+        try {
+          const { data, error } = await sb.from('ledgers').select('*').eq('code', code).maybeSingle();
+          if (error) throw error;
+          if (data) applyLedgerRow(data);
+        } catch (e) {
+          console.warn('pull ledger settings', e);
+        }
+      }, [applyLedgerRow]);
+
+      const pushLedgerSettings = useCallback(async (settings) => {
+        if (!sb || !settings) return false;
+        try {
+          const { error } = await sb.from('ledgers').upsert({
+            code: FIXED_LEDGER_CODE,
+            name: settings.tripName || '家人旅遊',
+            home_currency: settings.homeCurrency || 'TWD',
+            rates: settings.rates || {},
+            updated_at: nowISO()
+          });
+          if (error) throw error;
+          return true;
+        } catch (e) {
+          console.warn('push ledger settings', e);
+          return false;
+        }
+      }, []);
+
       const pullFromCloud = useCallback(async (code) => {
         if (!sb || !code) return;
         setSyncing(true);
         try {
+          await pullLedgerSettings(code);
           const { data, error } = await sb
             .from('transactions')
             .select('*')
@@ -486,7 +533,7 @@
               created_at: r.created_at,
               updated_at: r.updated_at
             })));
-            setStatusText('已同步 ' + data.length + ' 筆');
+            setStatusText('已同步 ' + data.length + ' 筆（含匯率）');
           }
         } catch (e) {
           console.warn(e);
@@ -494,7 +541,7 @@
         } finally {
           setSyncing(false);
         }
-      }, [setTxs]);
+      }, [setTxs, pullLedgerSettings]);
 
       const flushPending = useCallback(async () => {
         if (!sb || !ledger?.code || !online || pendingQueue.length === 0) return;
@@ -519,6 +566,9 @@
             } else if (item.action === 'delete') {
               const { error } = await sb.from('transactions').delete().eq('id', item.id).eq('ledger_code', ledger.code);
               if (error) throw error;
+            } else if (item.action === 'settings') {
+              const ok = await pushLedgerSettings(item.settings);
+              if (!ok) throw new Error('settings push failed');
             }
           } catch (e) {
             remaining.push(item);
@@ -530,14 +580,14 @@
           showToast('離線資料已上傳');
         }
         setSyncing(false);
-      }, [sb, ledger, online, pendingQueue, setPendingQueue, pullFromCloud]);
+      }, [sb, ledger, online, pendingQueue, setPendingQueue, pullFromCloud, pushLedgerSettings]);
 
-      // Realtime + initial pull
+      // Realtime：交易 + 帳本設定（匯率）同時訂閱
       useEffect(() => {
         if (!ledger?.code || !sb) return;
         pullFromCloud(ledger.code);
 
-        const channel = sb.channel('tx-' + ledger.code)
+        const channel = sb.channel('sync-' + ledger.code)
           .on('postgres_changes', {
             event: '*',
             schema: 'public',
@@ -545,6 +595,15 @@
             filter: `ledger_code=eq.${ledger.code}`
           }, () => {
             pullFromCloud(ledger.code);
+          })
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'ledgers',
+            filter: `code=eq.${ledger.code}`
+          }, (payload) => {
+            if (payload.new) applyLedgerRow(payload.new);
+            else pullLedgerSettings(ledger.code);
           })
           .subscribe();
 
@@ -572,17 +631,47 @@
           return base.includes(myName) ? base : [...base, myName];
         });
         setIsWelcomeOpen(false);
+        // 先拉雲端既有設定（含匯率），避免覆蓋其他人已設好的匯率
         if (sb) {
           try {
-            await sb.from('ledgers').upsert({
-              code: FIXED_LEDGER_CODE,
-              name: newLedger.tripName,
-              home_currency: newLedger.homeCurrency
-            });
-          } catch {}
+            const { data } = await sb.from('ledgers').select('*').eq('code', FIXED_LEDGER_CODE).maybeSingle();
+            if (data) {
+              applyLedgerRow(data);
+              // 保留剛輸入的暱稱與（若雲端尚無）本機行程名
+              setLedger(prev => prev ? {
+                ...prev,
+                myName,
+                tripName: data.name || newLedger.tripName,
+                homeCurrency: data.home_currency || newLedger.homeCurrency,
+                rates: (data.rates && typeof data.rates === 'object') ? data.rates : {},
+                code: FIXED_LEDGER_CODE
+              } : newLedger);
+            } else {
+              await pushLedgerSettings(newLedger);
+            }
+          } catch {
+            await pushLedgerSettings(newLedger);
+          }
         }
         await pullFromCloud(FIXED_LEDGER_CODE);
         showToast('已進入共用帳本，開始同步');
+      };
+
+      const handleSaveSettings = async (s, m) => {
+        const next = { ...ledger, ...s, code: FIXED_LEDGER_CODE };
+        setLedger(next);
+        setMembers(m);
+        setIsSettingsOpen(false);
+        if (!online || !sb) {
+          setPendingQueue(prev => [
+            ...prev.filter(p => p.action !== 'settings'),
+            { action: 'settings', settings: next }
+          ]);
+          showToast(online ? '設定已儲存（待同步）' : '設定已離線暫存，有網後會同步匯率');
+          return;
+        }
+        const ok = await pushLedgerSettings(next);
+        showToast(ok ? '設定與匯率已同步給家人' : '本機已存，雲端同步失敗', ok ? 'success' : 'error');
       };
 
       const handleLeave = () => {
@@ -715,7 +804,7 @@
             <div className="text-5xl mb-4">✈️</div>
             <h1 className="text-2xl font-bold mb-2">旅遊記帳</h1>
             <p className="text-zinc-500 text-center text-sm mb-8 max-w-xs">
-              家人/朋友 打開同一個網址即可即時同步記帳，支援離線暫存。
+              全家人打開同一個網址即可即時同步記帳，不必輸入代碼。支援離線暫存。
             </p>
             <WelcomeModal onStart={handleStart} />
             {toast && <Toast {...toast} onClose={() => setToast(null)} />}
@@ -898,7 +987,7 @@
           )}
           {isSettingsOpen && (
             <SettingsModal settings={ledger} members={members}
-              onSave={(s, m) => { setLedger({ ...ledger, ...s }); setMembers(m); setIsSettingsOpen(false); showToast('設定已儲存'); }}
+              onSave={handleSaveSettings}
               onClose={() => setIsSettingsOpen(false)}
               onLeave={handleLeave} />
           )}
