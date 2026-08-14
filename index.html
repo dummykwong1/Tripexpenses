@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
-  <title>旅遊記帳 Travel Ledger</title>
-  <meta name="description" content="家人出國旅遊即時同步記帳 PWA" />
+  <title>J.Law 旅遊記帳</title>
+  <meta name="description" content="家人朋友旅遊即時同步記帳" />
   <meta name="theme-color" content="#18181b" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="旅遊記帳" />
+  <meta name="apple-mobile-web-app-title" content="J.Law 旅遊記帳" />
   <meta name="mobile-web-app-capable" content="yes" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icon-192.png" />
@@ -250,7 +250,7 @@
     // 首次開啟：只填暱稱即可進入全家人共用帳本（免代碼）
     const WelcomeModal = ({ onStart }) => {
       const [name, setName] = useState('');
-      const [tripName, setTripName] = useState('家人旅遊');
+      const [tripName, setTripName] = useState('J.Law 旅遊共同帳本');
       const [homeCur, setHomeCur] = useState('TWD');
 
       return (
@@ -261,7 +261,7 @@
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-zinc-500 mb-1">你的暱稱（顯示在付款人）</label>
-                <input type="text" placeholder="例如：爸爸、小美" value={name}
+                <input type="text" placeholder="例如：爸爸、細佬" value={name}
                   onChange={e => setName(e.target.value)}
                   className="w-full px-3 py-2.5 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800"
                   autoFocus />
@@ -715,7 +715,7 @@
             <div className="text-5xl mb-4">✈️</div>
             <h1 className="text-2xl font-bold mb-2">旅遊記帳</h1>
             <p className="text-zinc-500 text-center text-sm mb-8 max-w-xs">
-              全家人打開同一個網址即可即時同步記帳，不必輸入代碼。支援離線暫存。
+              家人/朋友 打開同一個網址即可即時同步記帳，支援離線暫存。
             </p>
             <WelcomeModal onStart={handleStart} />
             {toast && <Toast {...toast} onClose={() => setToast(null)} />}
