@@ -1,4 +1,3 @@
-
 name: Ping Supabase to Keep Alive
 
 # 設定幾時自動執行（建議每 3 日執行一次，時間用 UTC）
@@ -18,8 +17,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          # 呢度會去 ping Supabase 嘅 REST API (例如查詢某張表，或者直接 ping auth endpoint)
-          # 最穩陣係去讀取你其中一張公開嘅 table，或者用以下 curl 去 ping auth health check
+          # 呢度會去 ping Supabase 嘅 REST API 嘅 health check endpoint
           response=$(curl -s -o /dev/null -w "%{http_code}" \
             "$SUPABASE_URL/auth/v1/health" \
             -H "apikey: $SUPABASE_ANON_KEY")
